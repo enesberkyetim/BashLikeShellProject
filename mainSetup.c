@@ -88,8 +88,26 @@ void setup(char inputBuffer[], char *args[],int *background)
      args[ct] = NULL; /* just in case the input line was > 80 */
 } /* end of setup routine */
 
+void background_to_foreground(pid_t pid) {
+	waitpid(pid, NULL, 0);
+	return;
+}
+
 void ctrl_z(int signal_number) {
 	char message[] = "\nCTRL-Z pressed : Foreground process terminated\n";
+
+
+	// this loop will be useful for exit command (when we will implement it)
+	// user will have to carry bg processes to fg and kill them before exiting
+	// so we check that is the current fg process that will be killed were a bg process before
+	// and erase its pid from out background_pids list
+	for (int i = 0; i < MAX_LINE/2 + 1; i++) {
+		if (background_pids[i] == currently_running_foreground) {
+			background_pids[i] = 0;
+		}
+	}
+
+	// inform the user then kill the fg process
 	write(STDOUT_FILENO,message,strlen(message));
 	kill(currently_running_foreground,SIGKILL);
 }
@@ -245,6 +263,39 @@ void execution_controller(char* args[],int background) {
 		// It will be nice if you implement this inside a function
 
 	}
+	if (!(strcmp(args[0], "fg"))) {
+		int pid;
+		char pid_str[50];
+
+		for (int i = 1; args[1][i] != '\0'; i++) {
+			pid_str[i - 1] = args[1][i];
+		}
+		pid_str[i - 1] = '\0';
+		pid = atoi(pid_str);
+
+		background_to_foreground(pid);
+	}
+	else if (!(strcmp(args[0], "exit"))) {
+		int bg_process_counter = 0;
+		for (int i = 0; i < MAX_LINE/2 + 1; i++) {
+			if (background_pids[i] == 0) {
+				continue;
+			}
+			else {
+				if (bg_process_counter == 0) {
+					printf("\nThere are currently running background processes : \n");
+				}
+
+				printf("PID : %d\n", background_pids[i]);
+				bg_process_counter++;
+			}
+		}
+
+		if (bg_process_counter == 0) {
+			printf("\nTerminating the shell..\n");
+			exit(0);
+		}
+	}
 	else if (isalpha(args[0][0]) && background == 0) {
 		char *command_args[MAX_LINE/2 + 1];
 		for (int j = 0; j < (MAX_LINE/2 + 1); j++) {
@@ -330,6 +381,7 @@ void execution_controller(char* args[],int background) {
 		background_execution(args[0], command_args_sent);
 
 	}
+
 
 }
 
