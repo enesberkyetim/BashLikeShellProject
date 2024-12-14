@@ -85,9 +85,7 @@ void setup(char inputBuffer[], char *args[],int *background)
      args[ct] = NULL; /* just in case the input line was > 80 */
 } /* end of setup routine */
 
-
-
-void foreground_execution(char *command, char *command_args[]) {
+char ** retrieve_path_env() {
 	char *path_of_enviroment = getenv("PATH");
 	char *paths[100];
 
@@ -120,7 +118,11 @@ void foreground_execution(char *command, char *command_args[]) {
 			k++;
 		}
 	}
+}
 
+void foreground_execution(char *command, char *command_args[]) {
+
+	char **paths = retrieve_path_env();
 
 	pid_t child_pid;
 	int path_length = 9 + strlen(command);
