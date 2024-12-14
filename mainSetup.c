@@ -16,7 +16,8 @@ in the next command line; separate it into distinct arguments (using blanks as
 delimiters), and set the args array entries to point to the beginning of what
 will become null-terminated, C-style strings. */
 
-
+int background_process_counter = 0;
+pid_t background_pids[MAX_LINE/2 + 1];
 
 void setup(char inputBuffer[], char *args[],int *background)
 {
@@ -85,9 +86,8 @@ void setup(char inputBuffer[], char *args[],int *background)
      args[ct] = NULL; /* just in case the input line was > 80 */
 } /* end of setup routine */
 
-char ** retrieve_path_env() {
+char ** retrieve_path_env(char **paths) {
 	char *path_of_enviroment = getenv("PATH");
-	char *paths[100];
 
 	for (int i = 0; i < 100; i++) {
 		char *empty = malloc(sizeof(char) * 100);
@@ -120,9 +120,9 @@ char ** retrieve_path_env() {
 	}
 }
 
-void foreground_execution(char *command, char *command_args[]) {
-
-	char **paths = retrieve_path_env();
+void background_execution(char *command, char *command_args[]) {
+	char *paths[100];
+	retrieve_path_env(paths);
 
 	pid_t child_pid;
 	int path_length = 9 + strlen(command);
@@ -148,16 +148,60 @@ void foreground_execution(char *command, char *command_args[]) {
 
 				struct stat buffer;
 				if (!stat(paths[i], &buffer)) {
-					execv(path[i], command_args);
+					execv(paths[i], command_args);
 				}
 				else {
 					continue;
 				}
 			}
 		}
-		strcat(path,"/usr/bin/");
-		strcat(path, command);
-		execv(path, command_args);
+	}
+	else {
+		background_pids[background_process_counter] = child_pid;
+		background_process_counter++;
+		for (int m = 0; m < MAX_LINE/2 + 1; m++) {
+			printf("%d\n", background_pids[m]);
+		}
+	}
+}
+
+
+
+void foreground_execution(char *command, char *command_args[]) {
+	char *paths[100];
+	retrieve_path_env(paths);
+
+	pid_t child_pid;
+	int path_length = 9 + strlen(command);
+
+	child_pid = fork();
+
+	if (child_pid == -1) {
+		perror("Failed to fork (Foreground)");
+	}
+
+	if (child_pid == 0) {
+		char path[path_length];
+		for (int m = 0; m < path_length; m++) {
+			path[m] = '\0';
+		}
+
+		for (int i = 0; i < 100; i++) {
+			if (paths[i] == NULL) {
+				break;
+			}
+			else {
+				strcat(paths[i], command);
+
+				struct stat buffer;
+				if (!stat(paths[i], &buffer)) {
+					execv(paths[i], command_args);
+				}
+				else {
+					continue;
+				}
+			}
+		}
 	}
 	else {
 		wait(NULL);
@@ -215,14 +259,55 @@ void execution_controller(char* args[],int background) {
 
 		foreground_execution(args[0], command_args_sent);
 	}
+	else if (isalpha(args[0][0]) && background == 1) {
+		char *command_args[MAX_LINE/2 + 1];
+		for (int j = 0; j < (MAX_LINE/2 + 1); j++) {
+			command_args[j] = NULL;
+		}
+
+		i++;
+		int command_args_index = 0;
+
+		while (args[i] != NULL) {
+			if (args[i][0] == '|' && args[i][1] == '<' || args[i][0] == '>') {
+				// Here will be the C (i/o redirection) part
+				// It will be nice if you implement this inside a function
+				return;
+			}
+			else {
+				command_args[command_args_index] = args[i];
+				command_args_index++;
+				i++;
+			}
+		}
+
+		if (command_args[0] == NULL) {
+			background_execution(args[0], NULL);
+			return;
+		}
+
+		int j = 0;
+		while (command_args[j] != NULL) {
+			j++;
+		}
+
+		char *command_args_sent[j + 2];
+		command_args_sent[0] = args[0];
+		command_args_sent[j + 1] = NULL;
+
+		for (int k = 1; k < j + 1; k++) {
+			command_args_sent[k] = command_args[k - 1];
+		}
+
+		background_execution(args[0], command_args_sent);
+
+	}
 
 }
 
 
 int main(void)
 {
-	int background_process_counter = 0;
-	pid_t background_pids[MAX_LINE/2 + 1];
 
 	char inputBuffer[MAX_LINE]; /*buffer to hold command entered */
 	int background = 0; /* equals 1 if a command is followed by '&' */
