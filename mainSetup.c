@@ -19,6 +19,8 @@ will become null-terminated, C-style strings. */
 int background_process_counter = 0;
 pid_t background_pids[MAX_LINE/2 + 1];
 
+pid_t currently_running_foreground;
+
 void setup(char inputBuffer[], char *args[],int *background)
 {
     int length, /* # of characters in the command line */
@@ -85,6 +87,12 @@ void setup(char inputBuffer[], char *args[],int *background)
      }    /* end of for */
      args[ct] = NULL; /* just in case the input line was > 80 */
 } /* end of setup routine */
+
+void ctrl_z(int signal_number) {
+	char message[] = "\nCTRL-Z pressed : Foreground process terminated\n";
+	write(STDOUT_FILENO,message,strlen(message));
+	kill(currently_running_foreground,SIGKILL);
+}
 
 char ** retrieve_path_env(char **paths) {
 	char *path_of_enviroment = getenv("PATH");
@@ -201,6 +209,29 @@ void foreground_execution(char *command, char *command_args[]) {
 		}
 	}
 	else {
+		currently_running_foreground = child_pid;
+
+		// setting up the signal handling for the ctrl z
+
+		struct sigaction action;
+		int status;
+
+		action.sa_handler = ctrl_z;
+		action.sa_flags = 0;
+		status = sigemptyset(&action.sa_mask);
+
+		if (status == -1) {
+			perror("Failed to initialize the signal set");
+			exit(-1);
+		}
+
+		status = sigaction(SIGTSTP, &action, NULL);
+
+		if (status == -1) {
+			perror("Failed to install SIGTSTP signal handler");
+			exit(-1);
+		}
+
 		wait(NULL);
 	}
 }
@@ -309,6 +340,8 @@ int main(void)
 	char inputBuffer[MAX_LINE]; /*buffer to hold command entered */
 	int background = 0; /* equals 1 if a command is followed by '&' */
 	char *args[MAX_LINE/2 + 1]; /*command line arguments */
+
+
 
 	while (1){
 		printf("myshell: ");
