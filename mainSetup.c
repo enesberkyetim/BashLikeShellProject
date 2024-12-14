@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 #define MAX_LINE 80 /* 80 chars per line, per command, should be enough. */
 
@@ -27,6 +28,7 @@ void setup(char inputBuffer[], char *args[],int *background)
     ct = 0;
 
     /* read what the user enters on the command line */
+
     length = read(STDIN_FILENO,inputBuffer,MAX_LINE);
 
     /* 0 is the system predefined file descriptor for stdin (standard input),
@@ -83,20 +85,148 @@ void setup(char inputBuffer[], char *args[],int *background)
      args[ct] = NULL; /* just in case the input line was > 80 */
 } /* end of setup routine */
 
+
+
+void foreground_execution(char *command, char *command_args[]) {
+	char *path_of_enviroment = getenv("PATH");
+	char *paths[100];
+
+	for (int i = 0; i < 100; i++) {
+		char *empty = malloc(sizeof(char) * 100);
+		for (int j = 0; j < 100; j++) {
+			empty[j] = '\0';
+		}
+		paths[i] = empty;
+	}
+
+
+
+	for (int i = 0, j = 0, k = 0; path_of_enviroment[i] != '\0'; i++) {
+		if (path_of_enviroment[i] == ':') {
+			paths[j][k] = '/';
+			paths[j][k + 1] = '\0';
+			k = 0;
+			j++;
+		}
+		else if (path_of_enviroment[i + 1] == '\0') {
+			paths[j][k] = '/';
+			paths[j][k + 1] = '\0';
+			k = 0;
+			j++;
+			break;
+		}
+		else {
+			paths[j][k] = path_of_enviroment[i];
+			k++;
+		}
+	}
+
+
+	pid_t child_pid;
+	int path_length = 9 + strlen(command);
+
+	child_pid = fork();
+
+	if (child_pid == -1) {
+		perror("Failed to fork (Foreground)");
+	}
+
+	if (child_pid == 0) {
+		char path[path_length];
+		for (int m = 0; m < path_length; m++) {
+			path[m] = '\0';
+		}
+
+		for (int i = 0; i < 100; i++) {
+			if (paths[i] == NULL) {
+				break;
+			}
+			else {
+				strcat(paths[i], command);
+
+				struct stat buffer;
+				if (!stat(paths[i], &buffer)) {
+					execv(path[i], command_args);
+				}
+				else {
+					continue;
+				}
+			}
+		}
+		strcat(path,"/usr/bin/");
+		strcat(path, command);
+		execv(path, command_args);
+	}
+	else {
+		wait(NULL);
+	}
+}
+
+void execution_controller(char* args[],int background) {
+	int i = 0;
+
+
+	if (!(strcmp(args[0], "history"))){
+		// Here is the B part (the history command that we will implement)
+		// It will be nice if you implement this inside a function
+
+	}
+	else if (isalpha(args[0][0]) && background == 0) {
+		char *command_args[MAX_LINE/2 + 1];
+		for (int j = 0; j < (MAX_LINE/2 + 1); j++) {
+				command_args[j] = NULL;
+		}
+
+		i++;
+		int command_args_index = 0;
+
+		while (args[i] != NULL) {
+			if (args[i][0] == '|' && args[i][1] == '<' || args[i][0] == '>') {
+				// Here will be the C (i/o redirection) part
+				// It will be nice if you implement this inside a function
+				return;
+			}
+			else {
+				command_args[command_args_index] = args[i];
+				command_args_index++;
+				i++;
+			}
+		}
+
+		if (command_args[0] == NULL) {
+			foreground_execution(args[0], NULL);
+			return;
+		}
+
+		int j = 0;
+		while (command_args[j] != NULL) {
+			j++;
+		}
+
+		char *command_args_sent[j + 2];
+		command_args_sent[0] = args[0];
+		command_args_sent[j + 1] = NULL;
+
+		for (int k = 1; k < j + 1; k++) {
+			command_args_sent[k] = command_args[k - 1];
+		}
+
+		foreground_execution(args[0], command_args_sent);
+	}
+
+}
+
+
 int main(void)
 {
-	int foreground_process_counter = 0;
 	int background_process_counter = 0;
-
-	pid_t foreground_pids[MAX_LINE/2 + 1];
 	pid_t background_pids[MAX_LINE/2 + 1];
 
 	char inputBuffer[MAX_LINE]; /*buffer to hold command entered */
-	int background; /* equals 1 if a command is followed by '&' */
+	int background = 0; /* equals 1 if a command is followed by '&' */
 	char *args[MAX_LINE/2 + 1]; /*command line arguments */
 
 	while (1){
-		background = 0;
 		printf("myshell: ");
             	/*setup() calls exit() when Control-D is entered */
 		setup(inputBuffer, args, &background);
@@ -106,39 +236,6 @@ int main(void)
                 (2) the child process will invoke execv()
 				(3) if background == 0, the parent will wait,
                 otherwise it will invoke the setup() function again. */
-
-		int i = 0;
-
-		while (args[i] != NULL) {
-			if (isalpha(args[i][0]) && background == 0) {
-				pid_t child_pid;
-
-				child_pid = fork();
-
-				if (child_pid == -1) {
-					perror("Failed to fork (Foreground)");
-					exit(-1);
-				}
-
-				if (child_pid == 0) {
-					printf("%s\n", args[i]);
-					char path[9 + strlen(args[i])];
-					for (int j = 0; j < (9 + strlen(args[i])); j++) {
-						path[j] = '\0';
-					}
-					strcat(path,"/usr/bin/");
-					strcat(path,args[i]);
-					execv(path, NULL);
-				}
-				else {
-					foreground_pids[foreground_process_counter] = child_pid;
-					foreground_process_counter++;
-					wait(NULL);
-
-				}
-			}
-			i++;
-		}
-
+		execution_controller(args, background);
 	}
 }
