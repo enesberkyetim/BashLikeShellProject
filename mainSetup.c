@@ -1,13 +1,21 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
- 
+#include <stdlib.h>
+#include <signal.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
 #define MAX_LINE 80 /* 80 chars per line, per command, should be enough. */
- 
+
 /* The setup function below will not return any value, but it will just: read
 in the next command line; separate it into distinct arguments (using blanks as
 delimiters), and set the args array entries to point to the beginning of what
 will become null-terminated, C-style strings. */
+
+
 
 void setup(char inputBuffer[], char *args[],int *background)
 {
@@ -15,11 +23,11 @@ void setup(char inputBuffer[], char *args[],int *background)
         i,      /* loop index for accessing inputBuffer array */
         start,  /* index where beginning of next command parameter is */
         ct;     /* index of where to place the next parameter into args[] */
-    
+
     ct = 0;
-        
+
     /* read what the user enters on the command line */
-    length = read(STDIN_FILENO,inputBuffer,MAX_LINE);  
+    length = read(STDIN_FILENO,inputBuffer,MAX_LINE);
 
     /* 0 is the system predefined file descriptor for stdin (standard input),
        which is the user's screen in this case. inputBuffer by itself is the
@@ -56,7 +64,7 @@ void setup(char inputBuffer[], char *args[],int *background)
 
             case '\n':                 /* should be the final char examined */
 		if (start != -1){
-                    args[ct] = &inputBuffer[start];     
+                    args[ct] = &inputBuffer[start];
 		    ct++;
 		}
                 inputBuffer[i] = '\0';
@@ -73,26 +81,64 @@ void setup(char inputBuffer[], char *args[],int *background)
 	} /* end of switch */
      }    /* end of for */
      args[ct] = NULL; /* just in case the input line was > 80 */
-
-	for (i = 0; i <= ct; i++)
-		printf("args %d = %s\n",i,args[i]);
 } /* end of setup routine */
- 
+
 int main(void)
 {
-            char inputBuffer[MAX_LINE]; /*buffer to hold command entered */
-            int background; /* equals 1 if a command is followed by '&' */
-            char *args[MAX_LINE/2 + 1]; /*command line arguments */
-            while (1){
-                        background = 0;
-                        printf("myshell: ");
-                        /*setup() calls exit() when Control-D is entered */
-                        setup(inputBuffer, args, &background);
-                       
-                        /** the steps are:
-                        (1) fork a child process using fork()
-                        (2) the child process will invoke execv()
-						(3) if background == 0, the parent will wait,
-                        otherwise it will invoke the setup() function again. */
-            }
+	int foreground_process_counter = 0;
+	int background_process_counter = 0;
+
+	pid_t foreground_pids[MAX_LINE/2 + 1];
+	pid_t background_pids[MAX_LINE/2 + 1];
+
+	char inputBuffer[MAX_LINE]; /*buffer to hold command entered */
+	int background; /* equals 1 if a command is followed by '&' */
+	char *args[MAX_LINE/2 + 1]; /*command line arguments */
+
+	while (1){
+		background = 0;
+		printf("myshell: ");
+            	/*setup() calls exit() when Control-D is entered */
+		setup(inputBuffer, args, &background);
+
+            	/** the steps are:
+                (1) fork a child process using fork()
+                (2) the child process will invoke execv()
+				(3) if background == 0, the parent will wait,
+                otherwise it will invoke the setup() function again. */
+
+		int i = 0;
+
+		while (args[i] != NULL) {
+			if (isalpha(args[i][0]) && background == 0) {
+				pid_t child_pid;
+
+				child_pid = fork();
+
+				if (child_pid == -1) {
+					perror("Failed to fork (Foreground)");
+					exit(-1);
+				}
+
+				if (child_pid == 0) {
+					printf("%s\n", args[i]);
+					char path[9 + strlen(args[i])];
+					for (int j = 0; j < (9 + strlen(args[i])); j++) {
+						path[j] = '\0';
+					}
+					strcat(path,"/usr/bin/");
+					strcat(path,args[i]);
+					execv(path, NULL);
+				}
+				else {
+					foreground_pids[foreground_process_counter] = child_pid;
+					foreground_process_counter++;
+					wait(NULL);
+
+				}
+			}
+			i++;
+		}
+
+	}
 }
