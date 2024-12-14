@@ -159,9 +159,6 @@ void background_execution(char *command, char *command_args[]) {
 	else {
 		background_pids[background_process_counter] = child_pid;
 		background_process_counter++;
-		for (int m = 0; m < MAX_LINE/2 + 1; m++) {
-			printf("%d\n", background_pids[m]);
-		}
 	}
 }
 
