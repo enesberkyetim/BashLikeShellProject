@@ -347,6 +347,7 @@ void execution_controller(char* args[],int background) {
 							break;
 						}
 						printf("%s " ,historyCount[m][n]);
+						// a
 					}
 					printf("\n");
 				}
