@@ -18,8 +18,67 @@ will become null-terminated, C-style strings. */
 
 int background_process_counter = 0;
 pid_t background_pids[MAX_LINE/2 + 1];
-
+char * historyCount[10][MAX_LINE/2 + 1];
+int historyCountLine =0;
 pid_t currently_running_foreground;
+
+void add_history(char *args[]) {
+	int i = 0;
+	if (!(strcmp(args[0],"history"))) {
+
+	}
+	else {
+		int count =0;
+		for (i=0;i<MAX_LINE/2+1;i++) {
+			if (args[i] != NULL) {
+				count++;
+			}
+			else {
+				break;
+			}
+
+		}
+
+		if (historyCountLine == 0) {
+			for (i=0;i<count;i++) {
+				char *arg = malloc(sizeof(char)*(strlen(args[i])));
+				strcpy(arg,args[i]);
+				historyCount[0][i] = arg;
+				historyCount[0][count]= NULL;
+			}
+			historyCountLine++;
+
+		}
+		else {
+			for (int j=historyCountLine;j>=0;j--) {
+				for (i=0;i<MAX_LINE/2 + 1;i++){
+					if (historyCount[j][i] != NULL) {
+						char *arg = malloc(sizeof(char)*(strlen(historyCount[j][i])));
+						strcpy(arg,historyCount[j][i]);
+						historyCount[j + 1][i] = arg;
+					}
+					else {
+						historyCount[j + 1][i] = NULL;
+					}
+				}
+			}
+
+			for (i=0;i<count;i++){
+				char *arg = malloc(sizeof(char)*(strlen(args[i])));
+				strcpy(arg,args[i]);
+				historyCount[0][i] = arg;
+				historyCount[0][count]= NULL;
+			}
+
+			if (historyCountLine == 8) {
+				historyCountLine = 8;
+			}
+			else {
+				historyCountLine++;
+			}
+		}
+	}
+}
 
 void setup(char inputBuffer[], char *args[],int *background)
 {
@@ -53,7 +112,7 @@ void setup(char inputBuffer[], char *args[],int *background)
 	exit(-1);           /* terminate with error code of -1 */
     }
 
-	printf(">>%s<<",inputBuffer);
+	//printf(">>%s<<",inputBuffer);
     for (i=0;i<length;i++){ /* examine every character in the inputBuffer */
 
         switch (inputBuffer[i]){
@@ -85,8 +144,19 @@ void setup(char inputBuffer[], char *args[],int *background)
 		}
 	} /* end of switch */
      }    /* end of for */
-     args[ct] = NULL; /* just in case the input line was > 80 */
-} /* end of setup routine */
+     args[ct] = NULL;
+
+	/* just in case the input line was > 80 */
+	char **arg = malloc(sizeof(args));
+	memcpy(arg,args,sizeof(args));
+	add_history(args);
+
+
+}
+
+
+
+ /* end of setup routine */
 
 void background_to_foreground(pid_t pid) {
 	waitpid(pid, NULL, 0);
@@ -266,8 +336,30 @@ void execution_controller(char* args[],int background) {
 
 
 	if (!(strcmp(args[0], "history"))){
-		// Here is the B part (the history command that we will implement)
-		// It will be nice if you implement this inside a function
+		//if history has no argument
+		if (args[1] == NULL) {
+			printf("\n");
+			for (int m = 0; m < 10; m++) {
+				if (historyCount[m] != NULL) {
+					printf("%d ", m);
+					for (int n = 0; n < MAX_LINE/2 +1 ; n++) {
+						if (historyCount[m][n] == NULL) {
+							break;
+						}
+						printf("%s " ,historyCount[m][n]);
+					}
+					printf("\n");
+				}
+			}
+		}
+		//if history has arguments
+		else {
+			int line = atoi(args[2]);
+			char **arg = malloc(sizeof(historyCount[line]));
+			memcpy(arg,historyCount[line],sizeof(historyCount[line]));
+			add_history(arg);
+			execution_controller(arg, 0);
+		}
 
 	}
 	if (!(strcmp(args[0], "fg"))) {
@@ -450,6 +542,8 @@ void execution_controller(char* args[],int background) {
 }
 
 
+
+
 int main(void)
 {
 
@@ -457,7 +551,11 @@ int main(void)
 	int background = 0; /* equals 1 if a command is followed by '&' */
 	char *args[MAX_LINE/2 + 1]; /*command line arguments */
 
-
+	for (int i=0;i<10;i++) {
+		for (int j =0;j<MAX_LINE/2+1;j++) {
+			historyCount[i][j] = NULL;
+		}
+	}
 
 	while (1){
 		printf("myshell: ");
