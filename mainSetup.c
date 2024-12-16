@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 
 #define MAX_LINE 80 /* 80 chars per line, per command, should be enough. */
 
@@ -255,8 +256,132 @@ void foreground_execution(char *command, char *command_args[]) {
 }
 
 void io_redirection_execution(char *command, char *command_args[], char *redirection_type, char *input_file_name, char *output_file_name) {
-	// aşağıdaki variavle'ı debug için koydum. burası io_redirection yapılacaksa çağırılıyor
-	int a = 0;
+	char *paths[100];
+	retrieve_path_env(paths);
+
+	pid_t child_pid;
+	int path_length = 9 + strlen(command);
+
+	child_pid = fork();
+
+	if (child_pid == -1) {
+		perror("Failed to fork (Foreground)");
+	}
+	else if (child_pid == 0) {
+		if (!(strcmp(redirection_type, "<"))) {
+			int file_descriptor;
+
+			file_descriptor = open(input_file_name,(O_RDONLY), (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
+
+			if (file_descriptor == -1) {
+				perror("\nFailed to open input file\n");
+				return;
+			}
+			if (dup2(file_descriptor, STDIN_FILENO) == -1) {
+				perror("Failed to redirect standart input");
+				return;
+			}
+			if (close(file_descriptor) == -1) {
+				perror("Failed to close input file");
+			}
+		}
+		else if (!strcmp(redirection_type, ">")) {
+			int file_descriptor;
+
+			file_descriptor = open(output_file_name,(O_WRONLY | O_CREAT | O_TRUNC), (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH) );
+
+			if (file_descriptor == -1) {
+				perror("\nFailed to open input file\n");
+				return;
+			}
+			if (dup2(file_descriptor, STDOUT_FILENO) == -1) {
+				perror("Failed to redirect standart output");
+				return;
+			}
+			if (close(file_descriptor) == -1) {
+				perror("Failed to close output file");
+			}
+
+		}
+		else if (!strcmp(redirection_type, ">>")) {
+			int file_descriptor;
+
+			file_descriptor = open(output_file_name,(O_WRONLY | O_CREAT | O_APPEND), (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH) );
+
+			if (file_descriptor == -1) {
+				perror("\nFailed to open input file\n");
+				return;
+			}
+			if (dup2(file_descriptor, STDOUT_FILENO) == -1) {
+				perror("Failed to redirect standart output");
+				return;
+			}
+			if (close(file_descriptor) == -1) {
+				perror("Failed to close output file");
+			}
+		}
+		else if (!strcmp(redirection_type, "<>")) {
+			int in_file_descriptor;
+			int out_file_descriptor;
+
+			in_file_descriptor = open(input_file_name,(O_RDONLY), (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
+			out_file_descriptor = open(output_file_name,(O_WRONLY | O_CREAT | O_TRUNC), (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH) );
+
+			if (in_file_descriptor == -1 || out_file_descriptor == -1) {
+				perror("Failed to open input or output file\n");
+			}
+			if (dup2(in_file_descriptor, STDIN_FILENO) == -1 || dup2(out_file_descriptor, STDOUT_FILENO) == -1) {
+				perror("Failed to redirect standart input or output");
+			}
+			if (close(in_file_descriptor) == -1 || close(out_file_descriptor) == -1) {
+				perror("Failed to close input or output file");
+			}
+		}
+		else if (!strcmp(redirection_type, "2>")) {
+			int file_descriptor;
+
+			file_descriptor = open(output_file_name,(O_WRONLY | O_CREAT | O_TRUNC), (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH) );
+
+			if (file_descriptor == -1) {
+				perror("\nFailed to open input file\n");
+				return;
+			}
+			if (dup2(file_descriptor, STDERR_FILENO) == -1) {
+				perror("Failed to redirect standart error");
+				return;
+			}
+			if (close(file_descriptor) == -1) {
+				perror("Failed to close error file");
+			}
+		}
+
+
+		char path[path_length];
+		for (int m = 0; m < path_length; m++) {
+			path[m] = '\0';
+		}
+
+		for (int i = 0; i < 100; i++) {
+			if (paths[i] == NULL) {
+				break;
+			}
+			else {
+				strcat(paths[i], command);
+
+				struct stat buffer;
+				if (!stat(paths[i], &buffer)) {
+					execv(paths[i], command_args);
+				}
+				else {
+					continue;
+				}
+			}
+		}
+	}
+	else {
+		wait(NULL);
+	}
+
 }
 
 
@@ -268,7 +393,12 @@ void execution_controller(char* args[],int background) {
 	if (!(strcmp(args[0], "history"))){
 		// Here is the B part (the history command that we will implement)
 		// It will be nice if you implement this inside a function
-
+		if (args[1] == NULL) {
+			// sadece history
+		}
+		else {
+			// history numaralı
+		}
 	}
 	if (!(strcmp(args[0], "fg"))) {
 		int pid;
