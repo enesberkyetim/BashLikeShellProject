@@ -254,6 +254,13 @@ void foreground_execution(char *command, char *command_args[]) {
 	}
 }
 
+void io_redirection_execution(char *command, char *command_args[], char *redirection_type, char *input_file_name, char *output_file_name) {
+	// aşağıdaki variavle'ı debug için koydum. burası io_redirection yapılacaksa çağırılıyor
+	int a = 0;
+}
+
+
+
 void execution_controller(char* args[],int background) {
 	int i = 0;
 
@@ -306,9 +313,66 @@ void execution_controller(char* args[],int background) {
 		int command_args_index = 0;
 
 		while (args[i] != NULL) {
-			if (args[i][0] == '|' && args[i][1] == '<' || args[i][0] == '>') {
+			if (args[i][0] == '|' || args[i][0] == '<' || args[i][0] == '>' || (args[i][0] == '2' && args[i][1] == '>')) {
+
 				// Here will be the C (i/o redirection) part
 				// It will be nice if you implement this inside a function
+
+				i = 1;
+				command_args_index = 0;
+				char *input_file_name = NULL;
+				char *output_file_name = NULL;
+				char *redirection_type = NULL;
+
+				for (int j = 0; j < (MAX_LINE/2 + 1); j++) {
+					command_args[j] = NULL;
+				}
+
+				int double_redirection = 0;
+
+				while (args[i] != NULL) {
+					if (args[i][0] == '|' || args[i][0] == '<' || args[i][0] == '>' || (args[i][0] == '2' && args[i][1] == '>')) {
+						if (args[i][0] == '<') {
+							int j = i + 1;
+
+							while (args[j] != NULL) {
+								if (args[j][0] == '>') {
+									input_file_name = args[j - 1];
+									output_file_name = args[j + 1];
+									double_redirection = 1;
+									break;
+								}
+								j++;
+							}
+
+							if (double_redirection) {
+								redirection_type = "<>";
+								break;
+							}
+							else {
+								redirection_type = args[i];
+								input_file_name = args[i + 1];
+								break;
+							}
+						}
+						else if (args[i][0] == '>') {
+							redirection_type = args[i];
+							output_file_name = args[i + 1];
+							break;
+						}
+						else if (args[i][0] == '2' && args[i][1] == '>') {
+							redirection_type = args[i];
+							output_file_name = args[i + 1];
+							break;
+						}
+					}
+					else {
+						command_args[command_args_index] = args[i];
+						command_args_index++;
+					}
+					i++;
+				}
+				io_redirection_execution(args[0], command_args, redirection_type, input_file_name, output_file_name);
 				return;
 			}
 			else {
@@ -348,7 +412,7 @@ void execution_controller(char* args[],int background) {
 		int command_args_index = 0;
 
 		while (args[i] != NULL) {
-			if (args[i][0] == '|' && args[i][1] == '<' || args[i][0] == '>') {
+			if (args[i][0] == '|' || args[i][0] == '<' || args[i][0] == '>' || (args[i][0] == '2' && args[i][1] == '>')) {
 				// Here will be the C (i/o redirection) part
 				// It will be nice if you implement this inside a function
 				return;
